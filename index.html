@@ -10,13 +10,20 @@
  header{padding-bottom:1rem;border-bottom:1px solid #d8d8d8}
  h1{font-size:2rem;margin-bottom:.35rem}
  header p,.metadata,small{color:#5c6267}
- .filters{display:grid;grid-template-columns:minmax(240px,1fr) minmax(320px,1.3fr);gap:1.25rem;align-items:end;margin:1.5rem 0}
+ .filters{display:grid;grid-template-columns:minmax(320px,1fr) minmax(220px,.55fr);gap:1.5rem;align-items:end;margin:1.5rem 0}
  .filters label{margin:0}
- .ram-limit{display:grid;grid-template-columns:1fr auto;gap:.4rem 1rem;align-items:center}
+ .ram-limit{display:grid;grid-template-columns:1fr auto;gap:.5rem 1.25rem;align-items:center}
  .ram-limit label{margin:0}
- .ram-value{display:flex;align-items:center;gap:.45rem}
- #ram-number{width:6rem;margin:0}
- #ram{grid-column:1/-1;width:100%;padding:0}
+ .ram-limit>label:first-child{font-size:1.2rem;font-weight:700}
+ .ram-value{display:flex;align-items:center;gap:.5rem;font-size:1.1rem;font-weight:700}
+ #ram-number{width:7rem;margin:0;padding:.55rem;font-size:1.4rem;text-align:center}
+ #ram{grid-column:1/-1;width:100%;height:48px;margin:.15rem 0;padding:0;accent-color:#087f6b;cursor:pointer;touch-action:pan-y}
+ #ram::-webkit-slider-runnable-track{height:12px;border:1px solid #8c9ba0;border-radius:8px;background:#e3e9e7}
+ #ram::-webkit-slider-thumb{-webkit-appearance:none;width:32px;height:32px;margin-top:-11px;border:3px solid #fff;border-radius:50%;background:#087f6b;box-shadow:0 1px 4px #26323866}
+ #ram::-moz-range-track{height:12px;border:1px solid #8c9ba0;border-radius:8px;background:#e3e9e7}
+ #ram::-moz-range-progress{height:12px;border-radius:8px;background:#087f6b}
+ #ram::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff;border-radius:50%;background:#087f6b;box-shadow:0 1px 4px #26323866}
+ #ram:focus-visible{outline:3px solid #087f6b;outline-offset:4px;border-radius:8px}
  .table-scroll{display:block;width:100%;overflow-x:auto;margin:1rem 0}
  table{display:table;width:100%;min-width:900px;max-width:none;overflow:visible;white-space:normal;font-size:.92rem}
  th,td{text-align:right;white-space:nowrap;padding:.55rem .45rem}
@@ -31,7 +38,7 @@
  .pagination button{margin:0}
  .sources{border-top:1px solid #d8d8d8;margin-top:2rem;padding-top:1rem}
  .sources ul{padding-left:1.25rem}
- @media(max-width:760px){.filters{grid-template-columns:1fr}h1{font-size:1.65rem}.pagination{align-items:flex-start;flex-wrap:wrap}}
+ @media(max-width:760px){.filters{grid-template-columns:1fr;gap:1rem}h1{font-size:1.65rem}.pagination{align-items:flex-start;flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -41,14 +48,14 @@
 </header>
 <main>
  <section class="filters" aria-label="Model search and RAM limit">
-  <label for="search">Search models
-   <input type="search" id="search" placeholder="Model or publisher">
-  </label>
   <div class="ram-limit">
    <label for="ram">Available RAM</label>
    <label class="ram-value" for="ram-number"><input type="number" id="ram-number" min="2" max="1024" step="1" value="32"> GB</label>
    <input type="range" id="ram" min="2" max="1024" step="1" value="32">
   </div>
+  <label for="search">Search models
+   <input type="search" id="search" placeholder="Model or publisher">
+  </label>
  </section>
  <p class="metadata" id="summary" aria-live="polite">Loading model variants...</p>
  <div class="table-scroll">

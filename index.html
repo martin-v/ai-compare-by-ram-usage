@@ -25,7 +25,7 @@
  #ram::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff;border-radius:50%;background:#087f6b;box-shadow:0 1px 4px #26323866}
  #ram:focus-visible{outline:3px solid #087f6b;outline-offset:4px;border-radius:8px}
  .table-scroll{display:block;width:100%;overflow-x:auto;margin:1rem 0}
- table{display:table;width:100%;min-width:1120px;max-width:none;overflow:visible;white-space:normal;font-size:.92rem}
+ table{display:table;width:100%;min-width:2200px;max-width:none;overflow:visible;white-space:normal;font-size:.92rem}
  th,td{text-align:right;white-space:nowrap;padding:.55rem .45rem}
  th:first-child,td:first-child{text-align:left}
  th button{background:none;border:0;color:inherit;font:inherit;font-weight:700;margin:0;padding:0;text-align:inherit;box-shadow:none}
@@ -62,17 +62,26 @@
   <table>
    <thead><tr>
     <th title="Exact model repository evaluated. The link opens the model card."><button type="button" data-sort="name">Model</button></th>
-    <th title="Estimated weights plus 20% runtime overhead plus FP16 KV cache for the context shown in the next column. Does not include all runtime-specific allocations."><button type="button" data-sort="ram">RAM needed (est.)</button></th>
+    <th title="Estimated weights plus 20% runtime overhead plus FP16 KV cache for the context shown next. Other runtime-specific allocations are not included."><button type="button" data-sort="ram">RAM needed (est.)</button></th>
     <th title="Supported context from the model config. For models supporting over 200,000 tokens, RAM is estimated using half of the supported context."><button type="button" data-sort="contextTokens">Context used</button></th>
     <th title="Reported weight precision or quantization variant. Different Q formats remain separate model entries."><button type="button" data-sort="quant">Variant / Q</button></th>
     <th title="Parameter count reported by the benchmark source, in billions."><button type="button" data-sort="params">Parameters</button></th>
-    <th title="Berkeley Function Calling Leaderboard overall accuracy across function and tool-calling tasks. Only exact repository matches are shown."><button type="button" data-sort="bfcl">BFCL tools</button></th>
-    <th title="BFCL accuracy on its live function-calling tasks. Only exact repository matches are shown."><button type="button" data-sort="bfclLive">BFCL live</button></th>
+    <th title="BFCL overall accuracy across function and tool-calling tasks. Only exact repository matches are shown."><button type="button" data-sort="bfcl">BFCL overall</button></th>
+    <th title="BFCL live function-calling accuracy. Only exact repository matches are shown."><button type="button" data-sort="bfclLive">BFCL live</button></th>
     <th title="BFCL accuracy on multi-turn and multi-step tool-use tasks. Only exact repository matches are shown."><button type="button" data-sort="bfclMultiTurn">BFCL multi-turn</button></th>
-    <th title="MMLU-Pro general knowledge score from the Open LLM Leaderboard. Included as secondary context, not an agent score."><button type="button" data-sort="mmluPro">MMLU-Pro</button></th>
-    <th title="Benchmark source for the reported results. Different benchmarks are not directly comparable.">Source</th>
+    <th title="BFCL web-search task accuracy. Only exact repository matches are shown."><button type="button" data-sort="bfclWebSearch">BFCL web search</button></th>
+    <th title="MMLU accuracy from the H200 quantization benchmark; not directly comparable to other tasks."><button type="button" data-sort="mmlu">MMLU</button></th>
+    <th title="MMLU-Pro accuracy from the Open LLM Leaderboard; not directly comparable to other tasks."><button type="button" data-sort="mmluPro">MMLU-Pro</button></th>
+    <th title="GPQA accuracy from the Open LLM Leaderboard; not directly comparable to other tasks."><button type="button" data-sort="gpqa">GPQA</button></th>
+    <th title="IFEval instruction-following score from the Open LLM Leaderboard."><button type="button" data-sort="ifeval">IFEval</button></th>
+    <th title="GSM8K math-task accuracy from the H200 quantization benchmark."><button type="button" data-sort="gsm8k">GSM8K</button></th>
+    <th title="ARC-Challenge accuracy from the H200 quantization benchmark."><button type="button" data-sort="arcChallenge">ARC-C</button></th>
+    <th title="HellaSwag accuracy from the H200 quantization benchmark."><button type="button" data-sort="hellaswag">HellaSwag</button></th>
+    <th title="Winogrande accuracy from the H200 quantization benchmark."><button type="button" data-sort="winogrande">Winogrande</button></th>
+    <th title="Output tokens per second measured on H200 at one request per second; shown only when measured by the source."><button type="button" data-sort="tps">Output tok/s</button></th>
+    <th title="Source dataset for the listed benchmark data.">Source</th>
    </tr></thead>
-  <tbody id="rows"><tr><td colspan="10">Loading model variants...</td></tr></tbody>
+  <tbody id="rows"><tr><td colspan="19">Loading model variants...</td></tr></tbody>
   </table>
  </div>
  <nav class="pagination" aria-label="Benchmark pages">
@@ -117,6 +126,10 @@ function formatScore(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)}%` : "n/a";
 }
 
+function formatSpeed(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)} tok/s` : "n/a";
+}
+
 function formatLinkedScore(value, url) {
   const formatted = formatScore(value);
   return Number.isFinite(value) && url
@@ -139,7 +152,7 @@ $("ram").value = sliderForRam($("ram-number").value);
 function render() {
   if (models.length === 0) {
     $("summary").textContent = "Benchmark data is unavailable.";
-    $("rows").innerHTML = '<tr><td colspan="10">Model data could not be loaded. Reload the page to try again.</td></tr>';
+    $("rows").innerHTML = '<tr><td colspan="19">Model data could not be loaded. Reload the page to try again.</td></tr>';
     $("previous").disabled = true;
     $("next").disabled = true;
     $("page-status").textContent = "";
@@ -193,10 +206,19 @@ function render() {
       <td>${formatLinkedScore(model.bfcl, model.bfclSourceUrl)}</td>
       <td>${formatLinkedScore(model.bfclLive, model.bfclSourceUrl)}</td>
       <td>${formatLinkedScore(model.bfclMultiTurn, model.bfclSourceUrl)}</td>
+      <td>${formatLinkedScore(model.bfclWebSearch, model.bfclSourceUrl)}</td>
+      <td>${formatScore(model.mmlu)}</td>
       <td>${formatScore(model.mmluPro)}</td>
+      <td>${formatScore(model.gpqa)}</td>
+      <td>${formatScore(model.ifeval)}</td>
+      <td>${formatScore(model.gsm8k)}</td>
+      <td>${formatScore(model.arcChallenge)}</td>
+      <td>${formatScore(model.hellaswag)}</td>
+      <td>${formatScore(model.winogrande)}</td>
+      <td>${formatSpeed(model.tps)}</td>
       <td><a href="${escapeHtml(model.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(model.source)}</a></td>
     </tr>`;
-  }).join("") || '<tr><td colspan="10">No variants fit this RAM budget. Increase available RAM to see matching models.</td></tr>';
+  }).join("") || '<tr><td colspan="19">No variants fit this RAM budget. Increase available RAM to see matching models.</td></tr>';
 }
 
 document.querySelectorAll("[data-sort]").forEach(button => button.addEventListener("click", () => {

@@ -1,9 +1,11 @@
 import csv
+import concurrent.futures
 import io
 import json
 import math
 import re
 import sys
+import urllib.parse
 import urllib.request
 from collections import defaultdict
 from datetime import date
@@ -17,6 +19,7 @@ H200_DATA = (
     "https://huggingface.co/datasets/ssakethch/"
     "h200-quantization-benchmarks/resolve/main/data/"
 )
+BFCL_CSV = "https://gorilla.cs.berkeley.edu/data_overall.csv"
 SOURCES = [
     {
         "name": "Open LLM Leaderboard",
@@ -27,6 +30,11 @@ SOURCES = [
         "name": "H200 Quantization Benchmarks",
         "url": "https://huggingface.co/datasets/ssakethch/h200-quantization-benchmarks",
         "description": "MMLU and token latency measured on NVIDIA H200 MIG with vLLM.",
+    },
+    {
+        "name": "Berkeley Function Calling Leaderboard",
+        "url": "https://gorilla.cs.berkeley.edu/leaderboard.html",
+        "description": "BFCL tool-calling accuracy, including live and multi-turn tasks.",
     },
 ]
 PRECISIONS = {
@@ -72,6 +80,76 @@ def quantization(precision):
     return label, bits
 
 
+def model_config(model_name):
+    url = "https://huggingface.co/" + urllib.parse.quote(model_name, safe="/") + "/resolve/main/config.json"
+    try:
+        config = json.loads(fetch(url))
+    except (OSError, ValueError, urllib.error.HTTPError):
+        return None
+
+    text_config = config.get("text_config") or config.get("language_config") or config
+    if text_config.get("kv_lora_rank"):
+        return None
+
+    layers = number(text_config.get("num_hidden_layers"))
+    attention_heads = number(text_config.get("num_attention_heads"))
+    kv_heads = number(text_config.get("num_key_value_heads")) or attention_heads
+    head_dim = number(text_config.get("head_dim"))
+    hidden_size = number(text_config.get("hidden_size"))
+    if head_dim is None and hidden_size and attention_heads:
+        head_dim = hidden_size / attention_heads
+    context = number(text_config.get("max_position_embeddings"))
+
+    if not layers or not kv_heads or not head_dim or not context:
+        return None
+    if not float(head_dim).is_integer():
+        return None
+
+    kv_bytes_per_token = layers * 2 * kv_heads * head_dim * 2
+    return {
+        "kvBytesPerToken": int(kv_bytes_per_token),
+        "maxContextTokens": int(context),
+    }
+
+
+def add_model_configs(models):
+    model_names = sorted({model["name"] for model in models})
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        configs = dict(zip(model_names, executor.map(model_config, model_names)))
+    for model in models:
+        model.update(configs.get(model["name"]) or {})
+    configured = sum(
+        model.get("kvBytesPerToken") is not None
+        and model.get("maxContextTokens") is not None
+        for model in models
+    )
+    print(f"Loaded context architecture for {configured}/{len(models)} variants")
+
+
+def bfcl_scores():
+    reader = csv.DictReader(io.StringIO(fetch(BFCL_CSV).decode("utf-8-sig")))
+    scores = {}
+    for row in reader:
+        model_url = row.get("Model Link", "").rstrip("/")
+        prefix = "https://huggingface.co/"
+        if not model_url.startswith(prefix):
+            continue
+        model_name = model_url[len(prefix):].casefold()
+
+        def score(field):
+            value = str(row.get(field, "")).strip().rstrip("%")
+            return number(value)
+
+        scores[model_name] = {
+            "bfcl": score("Overall Acc"),
+            "bfclLive": score("Live Acc"),
+            "bfclMultiTurn": score("Multi Turn Acc"),
+            "bfclWebSearch": score("Web Search Acc"),
+            "bfclSourceUrl": SOURCES[2]["url"],
+        }
+    return scores
+
+
 def open_llm_models():
     try:
         import pyarrow.parquet as parquet
@@ -99,6 +177,13 @@ def open_llm_models():
                 "quant": quant,
                 "precision": precision,
                 "bits": bits,
+                "maxContextTokens": None,
+                "kvBytesPerToken": None,
+                "bfcl": None,
+                "bfclLive": None,
+                "bfclMultiTurn": None,
+                "bfclWebSearch": None,
+                "bfclSourceUrl": None,
                 "mmlu": None,
                 "mmluPro": percent(row.get("MMLU-PRO Raw")),
                 "gpqa": percent(row.get("GPQA Raw")),
@@ -156,6 +241,13 @@ def h200_models():
                 "quant": quant,
                 "precision": raw_quant,
                 "bits": bits,
+                "maxContextTokens": None,
+                "kvBytesPerToken": None,
+                "bfcl": None,
+                "bfclLive": None,
+                "bfclMultiTurn": None,
+                "bfclWebSearch": None,
+                "bfclSourceUrl": None,
                 "mmlu": measured.get("mmlu"),
                 "mmluPro": None,
                 "gpqa": None,
@@ -181,6 +273,12 @@ def main():
     models = open_llm_models() + h200_models()
     if len(models) < 100:
         raise RuntimeError(f"Only imported {len(models)} models; refusing to publish incomplete data")
+
+    add_model_configs(models)
+    bfcl = bfcl_scores()
+    for model in models:
+        if model["quant"] in {"BF16", "FP16"}:
+            model.update(bfcl.get(model["name"].casefold(), {}))
 
     quantizations = sorted({model["quant"] for model in models})
     data = {

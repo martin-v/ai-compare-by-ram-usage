@@ -10,7 +10,7 @@
  header{padding-bottom:1rem;border-bottom:1px solid #d8d8d8}
  h1{font-size:2rem;margin-bottom:.35rem}
  header p,.metadata,small{color:#5c6267}
- .filters{display:grid;grid-template-columns:minmax(320px,1fr) minmax(220px,.55fr);gap:1.5rem;align-items:end;margin:1.5rem 0}
+ .filters{display:grid;grid-template-columns:minmax(300px,1fr) minmax(180px,.45fr) minmax(210px,.55fr);gap:1.5rem;align-items:end;margin:1.5rem 0}
  .filters label{margin:0}
  .ram-limit{display:grid;grid-template-columns:1fr auto;gap:.5rem 1.25rem;align-items:center}
  .ram-limit label{margin:0}
@@ -24,8 +24,9 @@
  #ram::-moz-range-progress{height:12px;border-radius:8px;background:#087f6b}
  #ram::-moz-range-thumb{width:26px;height:26px;border:3px solid #fff;border-radius:50%;background:#087f6b;box-shadow:0 1px 4px #26323866}
  #ram:focus-visible{outline:3px solid #087f6b;outline-offset:4px;border-radius:8px}
+ #context-tokens{width:9rem;margin:0}
  .table-scroll{display:block;width:100%;overflow-x:auto;margin:1rem 0}
- table{display:table;width:100%;min-width:900px;max-width:none;overflow:visible;white-space:normal;font-size:.92rem}
+ table{display:table;width:100%;min-width:1120px;max-width:none;overflow:visible;white-space:normal;font-size:.92rem}
  th,td{text-align:right;white-space:nowrap;padding:.55rem .45rem}
  th:first-child,td:first-child{text-align:left}
  th button{background:none;border:0;color:inherit;font:inherit;font-weight:700;margin:0;padding:0;text-align:inherit;box-shadow:none}
@@ -38,21 +39,24 @@
  .pagination button{margin:0}
  .sources{border-top:1px solid #d8d8d8;margin-top:2rem;padding-top:1rem}
  .sources ul{padding-left:1.25rem}
- @media(max-width:760px){.filters{grid-template-columns:1fr;gap:1rem}h1{font-size:1.65rem}.pagination{align-items:flex-start;flex-wrap:wrap}}
+ @media(max-width:900px){.filters{grid-template-columns:1fr;gap:1rem}h1{font-size:1.65rem}.pagination{align-items:flex-start;flex-wrap:wrap}}
 </style>
 </head>
 <body>
 <header>
- <h1>Find a model that fits your RAM</h1>
- <p>Set the memory available on your computer. Each result is a specific model variant, including its Q format, estimated to fit.</p>
+ <h1>Agent models that fit your RAM</h1>
+ <p>Choose an available RAM budget and context length. Compare concrete model variants for tool use and multi-step agent work.</p>
 </header>
 <main>
  <section class="filters" aria-label="Model search and RAM limit">
   <div class="ram-limit">
-   <label for="ram">Available RAM</label>
-   <label class="ram-value" for="ram-number"><input type="number" id="ram-number" min="2" max="1024" step="1" value="32"> GB</label>
-   <input type="range" id="ram" min="2" max="1024" step="1" value="32">
+    <label for="ram" title="Maximum memory available on your local machine. Variants are listed only when their estimated total RAM, including the requested context cache, fits.">Available RAM</label>
+  <label class="ram-value" for="ram-number"><input type="number" id="ram-number" min="1" max="1024" step="1" value="1"> GB</label>
+  <input type="range" id="ram" min="0" max="1000" step="1" value="0" aria-label="RAM budget on a logarithmic scale">
   </div>
+    <label for="context-tokens" title="Requested prompt plus generated context length. RAM includes an estimated FP16 key/value cache at this token count.">Context request
+    <input type="number" id="context-tokens" min="512" max="1048576" step="512" value="8192">
+    </label>
   <label for="search">Search models
    <input type="search" id="search" placeholder="Model or publisher">
   </label>
@@ -61,14 +65,15 @@
  <div class="table-scroll">
   <table>
    <thead><tr>
-    <th><button type="button" data-sort="name">Model</button></th>
-    <th><button type="button" data-sort="ram">RAM needed (est.)</button></th>
-    <th><button type="button" data-sort="quant">Variant / Q</button></th>
-    <th><button type="button" data-sort="params">Parameters</button></th>
-    <th><button type="button" data-sort="mmlu">MMLU</button></th>
-    <th><button type="button" data-sort="mmluPro">MMLU-Pro</button></th>
-    <th><button type="button" data-sort="gpqa">GPQA</button></th>
-    <th>Benchmark</th>
+    <th title="Exact model repository evaluated. The link opens the model card."><button type="button" data-sort="name">Model</button></th>
+    <th title="Estimated weights plus 20% runtime overhead plus FP16 KV cache for the requested context. Does not include all runtime-specific allocations."><button type="button" data-sort="ram">RAM needed (est.)</button></th>
+    <th title="Reported weight precision or quantization variant. Different Q formats remain separate model entries."><button type="button" data-sort="quant">Variant / Q</button></th>
+    <th title="Parameter count reported by the benchmark source, in billions."><button type="button" data-sort="params">Parameters</button></th>
+    <th title="Berkeley Function Calling Leaderboard overall accuracy across function and tool-calling tasks. Only exact repository matches are shown."><button type="button" data-sort="bfcl">BFCL tools</button></th>
+    <th title="BFCL accuracy on its live function-calling tasks. Only exact repository matches are shown."><button type="button" data-sort="bfclLive">BFCL live</button></th>
+    <th title="BFCL accuracy on multi-turn and multi-step tool-use tasks. Only exact repository matches are shown."><button type="button" data-sort="bfclMultiTurn">BFCL multi-turn</button></th>
+    <th title="MMLU-Pro general knowledge score from the Open LLM Leaderboard. Included as secondary context, not an agent score."><button type="button" data-sort="mmluPro">MMLU-Pro</button></th>
+    <th title="Benchmark source for the reported results. Different benchmarks are not directly comparable.">Source</th>
    </tr></thead>
   <tbody id="rows"><tr><td colspan="8">Loading model variants...</td></tr></tbody>
   </table>
@@ -82,7 +87,7 @@
   <h2>Data and methods</h2>
   <p id="data-date" class="metadata"></p>
   <ul id="sources"></ul>
-  <p><small>RAM is estimated as parameters x bytes per weight x 1.2. Actual needs vary with runtime, context length and KV cache; this is not a measured peak-memory result. Benchmark scores come from their linked sources and are not directly comparable across different tests. A variant is shown only when its parameter count and precision are known.</small></p>
+  <p><small>RAM includes estimated weights, 20% runtime overhead and an FP16 key/value cache for the requested context. KV cache is calculated from each model's Hugging Face config (layers, key/value heads and head dimension). Actual peak RAM varies by inference engine, cache dtype, context contents and other allocations. Results without verified parameter count, precision or context metadata are omitted. BFCL scores are shown only for exact repository matches; different benchmarks are not directly comparable.</small></p>
  </section>
 </main>
 <script src="data.js"></script>
@@ -93,8 +98,11 @@ const models = Array.isArray(benchmarkData?.models) ? benchmarkData.models : [];
 const sources = Array.isArray(benchmarkData?.sources) ? benchmarkData.sources : [];
 const generatedAt = benchmarkData?.generatedAt || "unknown";
 const pageSize = 50;
-let sortKey = "ram";
-let ascending = true;
+const RAM_MIN = 1;
+const RAM_MAX = 1024;
+const RAM_SLIDER_STEPS = 1000;
+let sortKey = "bfcl";
+let ascending = false;
 let page = 0;
 
 $("data-date").textContent = `Data refreshed ${generatedAt}.`;
@@ -112,21 +120,47 @@ function formatScore(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)}%` : "n/a";
 }
 
+function formatLinkedScore(value, url) {
+  const formatted = formatScore(value);
+  return Number.isFinite(value) && url
+    ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${formatted}</a>`
+    : formatted;
+}
+
+function ramForSlider(position) {
+  const ratio = Number(position) / RAM_SLIDER_STEPS;
+  return Math.round(RAM_MIN * (RAM_MAX / RAM_MIN) ** ratio);
+}
+
+function sliderForRam(ram) {
+  const boundedRam = Math.min(RAM_MAX, Math.max(RAM_MIN, Number(ram)));
+  return Math.round(Math.log(boundedRam / RAM_MIN) / Math.log(RAM_MAX / RAM_MIN) * RAM_SLIDER_STEPS);
+}
+
+$("ram").value = sliderForRam($("ram-number").value);
+
 function render() {
   if (models.length === 0) {
     $("summary").textContent = "Benchmark data is unavailable.";
-    $("rows").innerHTML = '<tr><td colspan="8">Model data could not be loaded. Reload the page to try again.</td></tr>';
+    $("rows").innerHTML = '<tr><td colspan="9">Model data could not be loaded. Reload the page to try again.</td></tr>';
     $("previous").disabled = true;
     $("next").disabled = true;
     $("page-status").textContent = "";
     return;
   }
   const max = Number($("ram-number").value);
+  $("ram").setAttribute("aria-valuetext", `${max} GB available RAM`);
+  const contextTokens = Math.max(512, Number($("context-tokens").value) || 8192);
   const query = $("search").value.trim().toLowerCase();
   const rows = models.map(model => {
     const bytesPerWeight = model.bits ? model.bits / 8 : null;
-    const ram = model.params && bytesPerWeight ? model.params * bytesPerWeight * 1.2 : null;
-    return { ...model, ram };
+    const contextFits = model.maxContextTokens >= contextTokens;
+    const weightRam = model.params && bytesPerWeight ? model.params * bytesPerWeight * 1.2 : null;
+    const kvRam = model.kvBytesPerToken && contextFits
+      ? model.kvBytesPerToken * contextTokens / 1e9
+      : null;
+    const ram = weightRam !== null && kvRam !== null ? weightRam + kvRam : null;
+    return { ...model, ram, weightRam, kvRam };
   }).filter(model => {
     const matchesQuery = !query || `${model.name} ${model.quant} ${model.source}`.toLowerCase().includes(query);
     return matchesQuery && model.ram !== null && model.ram <= max;
@@ -145,22 +179,23 @@ function render() {
   page = Math.min(page, pageCount - 1);
   const start = page * pageSize;
   const visibleRows = rows.slice(start, start + pageSize);
-  $("summary").textContent = `${rows.length.toLocaleString()} variants fit within ${max} GB. Showing ${rows.length ? start + 1 : 0}-${Math.min(start + pageSize, rows.length)}.`;
+  $("summary").textContent = `${rows.length.toLocaleString()} variants fit within ${max} GB at ${contextTokens.toLocaleString()} tokens. Showing ${rows.length ? start + 1 : 0}-${Math.min(start + pageSize, rows.length)}.`;
   $("page-status").textContent = `Page ${page + 1} of ${pageCount}`;
   $("previous").disabled = page === 0;
   $("next").disabled = page >= pageCount - 1;
   $("rows").innerHTML = visibleRows.map(model => {
     return `<tr>
       <td class="model-cell"><a href="${escapeHtml(model.modelUrl)}" target="_blank" rel="noopener">${escapeHtml(model.name)}</a><small>${escapeHtml(model.weightType || "")}</small></td>
-      <td class="ram-cell">~${model.ram.toFixed(1)} GB</td>
+      <td class="ram-cell" title="~${model.weightRam.toFixed(1)} GB weights/runtime + ~${model.kvRam.toFixed(2)} GB FP16 KV cache">~${model.ram.toFixed(1)} GB</td>
       <td>${escapeHtml(model.quant)}</td>
       <td>${model.params.toFixed(1)}B</td>
-      <td>${formatScore(model.mmlu)}</td>
+      <td>${formatLinkedScore(model.bfcl, model.bfclSourceUrl)}</td>
+      <td>${formatLinkedScore(model.bfclLive, model.bfclSourceUrl)}</td>
+      <td>${formatLinkedScore(model.bfclMultiTurn, model.bfclSourceUrl)}</td>
       <td>${formatScore(model.mmluPro)}</td>
-      <td>${formatScore(model.gpqa)}</td>
       <td><a href="${escapeHtml(model.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(model.source)}</a></td>
     </tr>`;
-  }).join("") || '<tr><td colspan="8">No variants fit this RAM limit.</td></tr>';
+  }).join("") || '<tr><td colspan="9">No variants fit this RAM and context request.</td></tr>';
 }
 
 document.querySelectorAll("[data-sort]").forEach(button => button.addEventListener("click", () => {
@@ -177,14 +212,19 @@ $("next").addEventListener("click", () => { page += 1; render(); });
   render();
 }));
 $("ram").addEventListener("input", () => {
-  $("ram-number").value = $("ram").value;
+  $("ram-number").value = ramForSlider($("ram").value);
   page = 0;
   render();
 });
-$("ram-number").addEventListener("change", () => {
-  const value = Math.min(1024, Math.max(2, Number($("ram-number").value) || 2));
+$("ram-number").addEventListener("input", () => {
+  if ($("ram-number").value === "") return;
+  const value = Math.round(Math.min(RAM_MAX, Math.max(RAM_MIN, Number($("ram-number").value))));
   $("ram-number").value = value;
-  $("ram").value = value;
+  $("ram").value = sliderForRam(value);
+  page = 0;
+  render();
+});
+$("context-tokens").addEventListener("input", () => {
   page = 0;
   render();
 });

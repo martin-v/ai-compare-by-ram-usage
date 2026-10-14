@@ -21,7 +21,7 @@ Help people choose a concrete open model variant, including its quantization for
 ## Site And Deployment
 
 - This is a static GitHub Pages site with inline browser JavaScript and MVP.css; there is no frontend build system or package manager.
-- `.github/workflows/import-benchmarks.yml` refreshes data daily and pushes changed `data.js`; that push triggers `.github/workflows/deploy.yml`, which only publishes the site. Keep write permission limited to the importer and keep Pages deploy permissions in the deploy workflow.
+- `.github/workflows/import-benchmarks.yml` refreshes data daily and pushes changed `data.js`; its successful completion triggers `.github/workflows/deploy.yml`, which only publishes the site. Keep write permission limited to the importer and keep Pages deploy permissions in the deploy workflow.
 - Use Bash and Python for repository scripts; do not introduce Ruby.
 
 ## Validation

@@ -4,7 +4,7 @@ A static browser-based guide for choosing a concrete open model variant, includi
 
 ## Data sources
 
-The daily `Refresh benchmark data` workflow updates `data.js` and pushes it only when the data changes. That push triggers the separate Pages deployment workflow; a Pages-only deploy does not refetch benchmark data.
+The daily `Refresh benchmark data` workflow updates `data.js` and pushes it only when the data changes. Its successful completion triggers the separate Pages deployment workflow; a Pages-only deploy does not refetch benchmark data.
 
 - [Open LLM Leaderboard dataset](https://huggingface.co/datasets/open-llm-leaderboard/contents) provides MMLU-Pro, GPQA and IFEval evaluations, model parameter counts and reported precision.
 - [H200 Quantization Benchmarks](https://huggingface.co/datasets/ssakethch/h200-quantization-benchmarks) provides measured MMLU/task accuracy for AWQ, GPTQ, NVFP4, FP8 and BF16 variants on NVIDIA H200 MIG using vLLM.

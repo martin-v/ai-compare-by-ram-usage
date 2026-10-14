@@ -3,59 +3,178 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Compare AI models by RAM usage</title>
+<title>Open Model Benchmarks | RAM, Accuracy, Speed</title>
+<link rel="stylesheet" href="https://unpkg.com/mvp.css@1.17.2/mvp.css">
 <style>
- body{font-family:system-ui,sans-serif;max-width:900px;margin:2em auto;padding:0 1em}
- .controls{display:flex;flex-wrap:wrap;gap:1.5em;align-items:center;margin-bottom:1em}
- #ram{width:300px}
- table{border-collapse:collapse;width:100%}
- th,td{padding:.4em .6em;border-bottom:1px solid #ddd;text-align:right}
+ body{max-width:1280px;padding:0 1rem}
+ header{padding-bottom:1rem;border-bottom:1px solid #d8d8d8}
+ h1{font-size:2rem;margin-bottom:.35rem}
+ header p,.metadata,small{color:#5c6267}
+ .filters{display:grid;grid-template-columns:minmax(220px,2fr) minmax(180px,1fr) minmax(220px,1fr);gap:1rem;align-items:end;margin:1.5rem 0}
+ .filters label{margin:0}
+ #ram{width:100%;padding:0}
+ .range-label{display:flex;justify-content:space-between;gap:.5rem}
+ .table-scroll{overflow-x:auto;margin:1rem 0}
+ table{min-width:1080px;font-size:.92rem}
+ th,td{text-align:right;white-space:nowrap;padding:.55rem .45rem}
  th:first-child,td:first-child{text-align:left}
- th{cursor:pointer}
- .bar{display:inline-block;height:.8em;background:#4a90d9;vertical-align:middle}
- small{color:#666}
+ th button{background:none;border:0;color:inherit;font:inherit;font-weight:700;margin:0;padding:0;text-align:inherit;box-shadow:none}
+ th button:hover{text-decoration:underline}
+ td.model-cell{white-space:normal;min-width:220px;max-width:320px}
+ td.model-cell a{overflow-wrap:anywhere}
+ td.model-cell small,td.speed-cell small{display:block;font-size:.78rem}
+ .pagination{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+ .pagination button{margin:0}
+ .sources{border-top:1px solid #d8d8d8;margin-top:2rem;padding-top:1rem}
+ .sources ul{padding-left:1.25rem}
+ @media(max-width:760px){.filters{grid-template-columns:1fr}h1{font-size:1.65rem}.pagination{align-items:flex-start;flex-wrap:wrap}}
 </style>
 </head>
 <body>
-<h1>Compare AI models by RAM usage</h1>
-<div class="controls">
- <label>Max RAM: <input type="range" id="ram" min="2" max="1024" step="1" value="32"> <b id="ramv"></b> GB</label>
- <label>Quantization: <select id="quant"></select></label>
- <label>Memory bandwidth: <input type="number" id="bw" value="100" min="1" style="width:5em"> GB/s</label>
-</div>
-<table>
- <thead><tr>
-  <th data-k="name">Model</th><th data-k="ram">Est. RAM (GB)</th>
-  <th data-k="mmlu">Intelligence (MMLU %)</th><th data-k="tps">Speed (est. tok/s)</th>
- </tr></thead>
- <tbody id="rows"></tbody>
-</table>
-<p><small>Intelligence: publicly reported MMLU scores (approximate). RAM: parameters × bytes per weight × 1.2 (KV cache/runtime overhead).
-Speed: memory-bandwidth bound estimate = bandwidth ÷ (active parameters × bytes per weight). Estimates only.</small></p>
+<header>
+ <h1>Open Model Benchmarks</h1>
+ <p>Compare model quality, quantization, memory footprint and measured generation speed.</p>
+</header>
+<main>
+ <section class="filters" aria-label="Benchmark filters">
+  <label for="search">Find a model
+   <input type="search" id="search" placeholder="Model or publisher">
+  </label>
+  <label for="quant">Precision / quantization
+   <select id="quant"><option value="">All precision formats</option></select>
+  </label>
+  <label for="ram"><span class="range-label">Maximum estimated RAM <span><b id="ramv">32</b> GB</span></span>
+   <input type="range" id="ram" min="2" max="1024" step="1" value="32">
+  </label>
+ </section>
+ <label for="bw">Memory bandwidth for speed estimates (GB/s)
+  <input type="number" id="bw" value="100" min="1" max="10000" step="10">
+ </label>
+ <p class="metadata" id="summary" aria-live="polite"></p>
+ <div class="table-scroll">
+  <table>
+   <thead><tr>
+    <th><button type="button" data-sort="name">Model</button></th>
+    <th><button type="button" data-sort="params">Parameters</button></th>
+    <th><button type="button" data-sort="quant">Precision</button></th>
+    <th><button type="button" data-sort="ram">Est. RAM</button></th>
+    <th><button type="button" data-sort="mmlu">MMLU</button></th>
+    <th><button type="button" data-sort="mmluPro">MMLU-Pro</button></th>
+    <th><button type="button" data-sort="gpqa">GPQA</button></th>
+    <th><button type="button" data-sort="tps">Output tok/s</button></th>
+    <th>Benchmark</th>
+   </tr></thead>
+   <tbody id="rows"></tbody>
+  </table>
+ </div>
+ <nav class="pagination" aria-label="Benchmark pages">
+  <button type="button" id="previous">Previous</button>
+  <small id="page-status"></small>
+  <button type="button" id="next">Next</button>
+ </nav>
+ <section class="sources">
+  <h2>Data and methods</h2>
+  <p id="data-date" class="metadata"></p>
+  <ul id="sources"></ul>
+  <p><small>Benchmark scores are reported by their original sources and are not directly comparable across different tests. H200 token speed is derived from measured median TPOT at 1 request/s on an NVIDIA H200 MIG with vLLM. Other speed values are estimates based on the selected memory bandwidth. RAM is an estimate from parameter count and weight precision with 20% runtime overhead; it is not a measured peak-memory result.</small></p>
+ </section>
+</main>
 <script src="data.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-const quant = $("quant");
-Object.keys(QUANTS).forEach(q => quant.add(new Option(q, q, false, q === "Q4")));
-let sortKey = "mmlu", asc = false;
-function render() {
-  const max = +$("ram").value, bpw = QUANTS[quant.value], bw = +$("bw").value || 1;
-  $("ramv").textContent = max;
-  const rows = MODELS.map(m => ({
-    name: m.name, mmlu: m.mmlu,
-    ram: m.params * bpw * 1.2,
-    tps: bw / (m.active * bpw),
-  })).filter(r => r.ram <= max);
-  rows.sort((a, b) => (typeof a[sortKey] === "string" ? a[sortKey].localeCompare(b[sortKey]) : a[sortKey] - b[sortKey]) * (asc ? 1 : -1));
-  $("rows").innerHTML = rows.map(r =>
-    `<tr><td>${r.name}</td><td>${r.ram.toFixed(1)}</td>` +
-    `<td><span class="bar" style="width:${r.mmlu}px"></span> ${r.mmlu}</td><td>${r.tps.toFixed(1)}</td></tr>`).join("")
-    || '<tr><td colspan="4">No model fits in this RAM.</td></tr>';
+const { models, quantizations, sources, generatedAt } = window.BENCHMARK_DATA;
+const pageSize = 50;
+let sortKey = "mmluPro";
+let ascending = false;
+let page = 0;
+
+quantizations.forEach(value => $("quant").add(new Option(value, value)));
+$("data-date").textContent = `Data refreshed ${generatedAt}.`;
+$("sources").innerHTML = sources.map(source =>
+  `<li><a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">${escapeHtml(source.name)}</a> - ${escapeHtml(source.description)}</li>`
+).join("");
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
 }
-document.querySelectorAll("th").forEach(th => th.onclick = () => {
-  const k = th.dataset.k; asc = sortKey === k ? !asc : k === "name"; sortKey = k; render();
+
+function formatScore(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)}%` : "n/a";
+}
+
+function render() {
+  const max = Number($("ram").value);
+  const bandwidth = Math.max(1, Number($("bw").value) || 1);
+  const query = $("search").value.trim().toLowerCase();
+  const selectedQuant = $("quant").value;
+  $("ramv").textContent = max;
+  const rows = models.map(model => {
+    const bytesPerWeight = model.bits ? model.bits / 8 : null;
+    const ram = model.params && bytesPerWeight ? model.params * bytesPerWeight * 1.2 : null;
+    const estimatedTps = model.tps || (model.params && bytesPerWeight
+      ? bandwidth / (model.params * bytesPerWeight)
+      : null);
+    return { ...model, ram, displayTps: estimatedTps, measuredSpeed: Number.isFinite(model.tps) };
+  }).filter(model => {
+    const matchesQuery = !query || `${model.name} ${model.quant} ${model.source}`.toLowerCase().includes(query);
+    const matchesQuant = !selectedQuant || model.quant === selectedQuant;
+    const matchesRam = model.ram === null || model.ram <= max;
+    return matchesQuery && matchesQuant && matchesRam;
+  });
+
+  rows.sort((left, right) => {
+    const a = left[sortKey];
+    const b = right[sortKey];
+    if (a == null) return b == null ? 0 : 1;
+    if (b == null) return -1;
+    const comparison = typeof a === "string" ? a.localeCompare(b) : a - b;
+    return comparison * (ascending ? 1 : -1);
+  });
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  page = Math.min(page, pageCount - 1);
+  const start = page * pageSize;
+  const visibleRows = rows.slice(start, start + pageSize);
+  $("summary").textContent = `${rows.length.toLocaleString()} models match. Showing ${rows.length ? start + 1 : 0}-${Math.min(start + pageSize, rows.length)}.`;
+  $("page-status").textContent = `Page ${page + 1} of ${pageCount}`;
+  $("previous").disabled = page === 0;
+  $("next").disabled = page >= pageCount - 1;
+  $("rows").innerHTML = visibleRows.map(model => {
+    const speed = model.displayTps === null ? "n/a" : `${model.measuredSpeed ? "" : "~"}${model.displayTps.toFixed(1)}`;
+    const speedDetail = model.measuredSpeed ? "Measured on H200" : "Bandwidth estimate";
+    return `<tr>
+      <td class="model-cell"><a href="${escapeHtml(model.modelUrl)}" target="_blank" rel="noopener">${escapeHtml(model.name)}</a><small>${escapeHtml(model.weightType || "")}</small></td>
+      <td>${model.params ? `${model.params.toFixed(1)}B` : "n/a"}</td>
+      <td>${escapeHtml(model.quant)}</td>
+      <td>${model.ram === null ? "n/a" : `~${model.ram.toFixed(1)} GB`}</td>
+      <td>${formatScore(model.mmlu)}</td>
+      <td>${formatScore(model.mmluPro)}</td>
+      <td>${formatScore(model.gpqa)}</td>
+      <td class="speed-cell">${speed}<small>${speedDetail}</small></td>
+      <td><a href="${escapeHtml(model.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(model.source)}</a></td>
+    </tr>`;
+  }).join("") || '<tr><td colspan="9">No models match these filters.</td></tr>';
+}
+
+document.querySelectorAll("[data-sort]").forEach(button => button.addEventListener("click", () => {
+  const key = button.dataset.sort;
+  ascending = sortKey === key ? !ascending : key === "name" || key === "quant";
+  sortKey = key;
+  page = 0;
+  render();
+}));
+$("previous").addEventListener("click", () => { page -= 1; render(); });
+$("next").addEventListener("click", () => { page += 1; render(); });
+["ram", "quant", "bw", "search"].forEach(id => $(id).addEventListener("input", () => {
+  page = 0;
+  render();
+}));
+$("quant").addEventListener("change", () => {
+  page = 0;
+  render();
 });
-["ram", "quant", "bw"].forEach(id => $(id).addEventListener("input", render));
 render();
 </script>
 </body>

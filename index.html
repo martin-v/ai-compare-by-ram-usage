@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compare AI models by RAM usage</title>
+<style>
+ body{font-family:system-ui,sans-serif;max-width:900px;margin:2em auto;padding:0 1em}
+ .controls{display:flex;flex-wrap:wrap;gap:1.5em;align-items:center;margin-bottom:1em}
+ #ram{width:300px}
+ table{border-collapse:collapse;width:100%}
+ th,td{padding:.4em .6em;border-bottom:1px solid #ddd;text-align:right}
+ th:first-child,td:first-child{text-align:left}
+ th{cursor:pointer}
+ .bar{display:inline-block;height:.8em;background:#4a90d9;vertical-align:middle}
+ small{color:#666}
+</style>
+</head>
+<body>
+<h1>Compare AI models by RAM usage</h1>
+<div class="controls">
+ <label>Max RAM: <input type="range" id="ram" min="2" max="1024" step="1" value="32"> <b id="ramv"></b> GB</label>
+ <label>Quantization: <select id="quant"></select></label>
+ <label>Memory bandwidth: <input type="number" id="bw" value="100" min="1" style="width:5em"> GB/s</label>
+</div>
+<table>
+ <thead><tr>
+  <th data-k="name">Model</th><th data-k="ram">Est. RAM (GB)</th>
+  <th data-k="mmlu">Intelligence (MMLU %)</th><th data-k="tps">Speed (est. tok/s)</th>
+ </tr></thead>
+ <tbody id="rows"></tbody>
+</table>
+<p><small>Intelligence: publicly reported MMLU scores (approximate). RAM: parameters × bytes per weight × 1.2 (KV cache/runtime overhead).
+Speed: memory-bandwidth bound estimate = bandwidth ÷ (active parameters × bytes per weight). Estimates only.</small></p>
+<script src="data.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const quant = $("quant");
+Object.keys(QUANTS).forEach(q => quant.add(new Option(q, q, false, q === "Q4")));
+let sortKey = "mmlu", asc = false;
+function render() {
+  const max = +$("ram").value, bpw = QUANTS[quant.value], bw = +$("bw").value || 1;
+  $("ramv").textContent = max;
+  const rows = MODELS.map(m => ({
+    name: m.name, mmlu: m.mmlu,
+    ram: m.params * bpw * 1.2,
+    tps: bw / (m.active * bpw),
+  })).filter(r => r.ram <= max);
+  rows.sort((a, b) => (typeof a[sortKey] === "string" ? a[sortKey].localeCompare(b[sortKey]) : a[sortKey] - b[sortKey]) * (asc ? 1 : -1));
+  $("rows").innerHTML = rows.map(r =>
+    `<tr><td>${r.name}</td><td>${r.ram.toFixed(1)}</td>` +
+    `<td><span class="bar" style="width:${r.mmlu}px"></span> ${r.mmlu}</td><td>${r.tps.toFixed(1)}</td></tr>`).join("")
+    || '<tr><td colspan="4">No model fits in this RAM.</td></tr>';
+}
+document.querySelectorAll("th").forEach(th => th.onclick = () => {
+  const k = th.dataset.k; asc = sortKey === k ? !asc : k === "name"; sortKey = k; render();
+});
+["ram", "quant", "bw"].forEach(id => $(id).addEventListener("input", render));
+render();
+</script>
+</body>
+</html>
